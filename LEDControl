@@ -1,0 +1,233 @@
+import threading
+import RPi.GPIO as GPIO
+import time
+
+#  wrapper for the GPIO control, allows easier control for an array of LEDs based on the given
+#  GPIO ports.
+#  Supports basic operations such as LED blinking, toggle, on/off, breathing
+#  for the array of LEDs, operations such as filling, blink in order, show number in binary are implemented
+
+class LEDControl:
+
+    # change the ports based on your own GPIO set up
+    ports = [16,18,22,32,36,38,40,12]
+    lights = []
+
+    def __init__(self):
+        GPIO.cleanup()
+        GPIO.setmode(GPIO.BOARD)
+        for port in self.ports:
+            self.lights.append(LEDBulb(port))
+        self.groupClearance = True
+        for light in self.lights:
+            light.start()
+
+    def getLED(self,num):
+        if num < 0 or num >= len(self.lights):
+            print("No such light! Using the first Light instead")
+            return self.lights[0]
+        else:
+            return self.lights[num]
+
+    def fillUp(self,num):
+        self.turnOffAll()
+        if num < 0 or num >= len(self.lights):
+            print("Invalid amount of LEDs!")
+        else :
+            for i in range (0,num) :
+                self.lights[i].turnOn()
+
+    def fillUpBack(self,num):
+        self.turnOffAll()
+        if num < 0 or num >= len(self.lights):
+            print("Invalid amount of LEDs!")
+        else :
+            for i in range (len(self.lights)-num, len(self.lights), 1) :
+                self.lights[i].turnOn()
+
+    def checkStatus(self):
+        self.turnOffAll();
+        for light in self.lights:
+            light.turnOn()
+            time.sleep(0.05)
+        for light in self.lights:
+            light.turnOff()
+            time.sleep(0.05)
+
+    def showBinary(self,word):
+        if isinstance( word, int ):
+            text = bin(word)[2:]
+            textArr = self.cutString(text)
+            for i in range (0, len(textArr)):
+                self.flashAll(100,100)
+                time.sleep(1)
+                self.turnOffAll()
+                if(len(textArr[i]) < 8 ):  # fill leftside with zeros
+                    textArr[i] = textArr[i].rjust(len(self.lights),"2")  # fill the input
+                print(textArr[i])
+                for j in range(0, len(self.lights)):
+                    status = textArr[i][j]
+                    if status == "0":
+                        self.lights[j].turnOff()
+                    elif status == "1":
+                        self.lights[j].turnOn()
+                    else:  # indicate filled bits
+                        self.lights[j].flash(50, 50)
+                time.sleep(4)
+            self.flashAll(50,50)
+            time.sleep(1)
+            self.turnOffAll()
+            time.sleep(0.5)
+
+        else:
+            print("Sorry this type is currently not supported")
+
+    def cutString(self,s):
+        o = []
+        while s:
+            o.append(s[:len(self.lights)])
+            s = s[len(self.lights):]
+        return o
+
+    def turnOn(self,num):
+        LED = self.getLED(num)
+        LED.turnOn()
+
+    def turnOff(self,num):
+        LED = self.getLED(num)
+        LED.turnOff()
+
+    def toggle(self,num):
+        LED = self.getLED(num)
+        LED.toggle()
+
+    def falsh(self,num,onTime,offTime):
+        LED = self.getLED(num)
+        LED.flash(onTime,offTime)
+
+    def beep(self,num):
+        LED = self.getLED(num)
+        LED.beep()
+
+    def turnOnAll(self):
+        for light in self.lights:
+            light.turnOn()
+
+    def turnOffAll(self):
+        for light in self.lights:
+            light.turnOff()
+
+    def toggleAll(self):
+        for light in self.lights:
+            light.toggle()
+
+    def flashAll(self,onTime,offTime):
+        for light in self.lights:
+            light.flash(onTime,offTime)
+
+    def beepAll(self):
+        for light in self.lights:
+            light.beep()
+
+    def cleanup(self):
+        self.turnOffAll()
+        for light in self.lights:
+            light.stop()
+        GPIO.cleanup()
+
+class LEDBulb(threading.Thread):  # control unit for a single LED
+    id = 0
+    onTime = 1
+    offTime = 1
+    status = False  # on or off
+    clearance = False  # if the LED is valid
+    blink = False  # check if the LED is blinking
+    breath = False
+    power = None
+
+    def run(self):
+        while self.clearance:  # LED loop
+            if self.blink:
+                self.flick()
+            elif self.breath:
+                self.breathOnce()
+
+    def __init__(self, tag):
+        threading.Thread.__init__(self)
+        self.id = tag
+        GPIO.setup(self.id, GPIO.OUT)
+        self.clearance = True
+        self.turnOn()
+        time.sleep(0.05)
+        self.turnOff()
+
+    def toggle(self):
+        self.stopMotion()
+        self.status = not self.status
+        self.turn(self.status)
+
+    def turnOn(self):
+        self.stopMotion()
+        self.turn(True)
+
+    def turnOff(self):
+        self.stopMotion()
+        self.turn(False)
+
+    def turn(self,boolean):
+        if self.clearance:
+            self.status = boolean
+            GPIO.output(self.id,boolean)
+        else:
+            print("Check your clearance, Clearance.")
+
+    def stopMotion(self):  # used for stop beeping
+        self.blink = False;
+        self.breath = False;
+
+    def flick(self):
+        self.turn(True)
+        time.sleep(self.onTime*0.001)
+        self.turn(False)
+        time.sleep(self.offTime*0.001)
+
+    def flash(self,onTime,offTime):
+        self.blink = True
+        self.onTime = onTime
+        self.offTime = offTime
+
+    def breathOnce(self):
+        if self.clearance:
+            power = GPIO.PWM(self.id, 100)
+            power.start(0)
+            # pre set 20 phases of sleep
+            onGap = 5/self.onTime
+            offGap = 5/self.offTime
+            i = 0
+            while i < 101:
+                power.ChangeDutyCycle(int(i))
+                i += onGap
+                time.sleep(0.01)
+            i = 100
+            while i > 0:
+                power.ChangeDutyCycle(int(i))
+                i -= offGap
+                time.sleep(0.01)
+            power.stop()
+        else:
+            print("Check your clearance, Clearance.")
+
+    def keepBreathing(self,onTime, offTime):
+        self.breath = True
+        self.onTime = onTime
+        self.offTime = offTime
+
+    def stop(self):
+        self.blink = False;
+        self.breath = False;
+        self.clearance = False;
+
+    def beep(self):  # function used for default flashing
+        self.flash(500, 500)
+
+control = LEDControl()
