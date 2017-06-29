@@ -1,17 +1,38 @@
 import numpy as np
-import time
-import datetime
+import time,datetime
 import picamera
 import os
 import operator
+import dropbox
+import _thread
 from PIL import Image, ImageDraw, ImageFont
+from scipy.misc import imread
 from functools import reduce
+
+
+
+def get_current_time():
+	return str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S_%f"))[:-3].replace(":","-").replace(" ","_")
+
+def dropbox_upload(fileName):
+	_thread.start_new_thread(dropbox_upload_kernel, (get_current_time(),fileName))
+
+def dropbox_upload_kernel(threadNum,fileName):
+	# put your drop box token here
+	token = ????
+	client = dropbox.client.DropboxClient(token)
+	f = open(fileName,'rb')
+	response = client.put_file(fileName,f)
 
 def mse(imageA, imageB):
 	# the 'Mean Squared Error' between the two images is the
 	# sum of the squared difference between the two images;
 	# NOTE: the two images must have the same dimension
-	err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
+	temp = imageA.astype("int32")
+	temp -= imageB.astype("int32")
+	temp = temp ** 2
+	err = np.sum(temp)
+	# err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
 	err /= float(imageA.shape[0] * imageA.shape[1])
 	# return the MSE, the lower the error, the more "similar"
 	# the two images are
@@ -33,7 +54,7 @@ def equalize(im):
     return im.point(lut*im.layers)
 
 def capture():
-	currTime = str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S_%f"))[:-3].replace(":","-").replace(" ","_")
+	currTime = get_current_time()
 	camera.capture(currTime+".jpg")
 	# current = Image.open("temp.jpg")
 	current = Image.open(currTime+".jpg")
@@ -63,7 +84,6 @@ min = 9999
 max = 0
 minute = 0
 keep = False
-
 
 capture()
 time.sleep(1)
@@ -97,15 +117,18 @@ while True:
 				os.remove(prevName)
 		else:
 			print(currTime,err,str(sum/i),min,max,sep="\t")
-			print("movement detected. Recoding...")
 			camera.resolution = (640,480)
 			camera.framerate = 30
-			camera.start_recording(currTime.replace(":","-").replace(" ","_")+'.h264')
+			video_name = currTime.replace(":","-").replace(" ","_")+'.h264'
+			camera.start_recording(video_name)
 			camera.wait_recording(20)
 			camera.stop_recording()
 			camera.resolution = (xSize,ySize)
 			i += 1
 			currName = capture()
+			dropbox_upload(video_name)
+			dropbox_upload(currName)
+
 	prevName = currName
 
 after = datetime.datetime.now()
