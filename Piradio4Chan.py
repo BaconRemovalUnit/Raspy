@@ -1,5 +1,7 @@
 """
-    pipe file collected from 4chan to stdout
+    Collect webm from 4chan and broadcast them to FM radio using raspberry pi
+    I know, this sounds like a bad idea and it is,
+    but at this point there is no way back now
 """
 import json
 import logging
@@ -47,7 +49,9 @@ class Piradio4Chan:
         command = "sudo\u2333/home/pi/Playground/PiFM/src/pi_fm_rds\u2333-freq" \
                   "\u2333{}\u2333-ps\u2333{}\u2333-rt\u2333{}\u2333-pi\u2333{}\u2333-audio\u2333-".format(
                     self.frequency, self.ps, self.rt, self.pi).split("\u2333")
-        subprocess.Popen(command,stdin=music_pipe_r, stdout=dev_null)
+
+        # start radio
+        subprocess.Popen(command, stdin=music_pipe_r, stdout=dev_null)
         while True:
             if self.playlist:
                 file = self.playlist[self.index]
@@ -59,7 +63,7 @@ class Piradio4Chan:
                 except OSError:
                     logging.warning("Unable to download {}".format(str(file)))
                 else:
-                    logging.warning("Downloaded {}".format(str(file)))
+                    logging.info("Downloaded {}".format(str(file)))
                 finally:
                     if self.shuffle:
                         self.index = randrange(0, len(self.playlist))
@@ -87,8 +91,10 @@ class Piradio4Chan:
                         if self.keyword in op["com"]:
                             qualified = True
 
+                    # webm not collected
                     if qualified:
-                        thread_data = requests.get("https://a.4cdn.org/{}/thread/{}.json".format(board, op["no"]),
+                        thread_data = requests.get("https://a.4cdn.org/{}/thread/{}.json"
+                                                   .format(board, op["no"]),
                                                    headers=self.headers)
                         thread_response = json.loads(thread_data.content.decode('utf-8'))
                         # posts is a list of posts
@@ -97,7 +103,9 @@ class Piradio4Chan:
                         # post is a dict with info about each post
                         for post in posts:
                             if "ext" in post and post["ext"][1:] in self.file_types:
-                                download_link = "https://i.4cdn.org/{}/{}{}".format(board, post["tim"], post["ext"])
+                                download_link = "https://i.4cdn.org/{}/{}{}"\
+                                    .format(board, post["tim"], post["ext"])
+
                                 if download_link not in self.playlist:
                                     self.playlist.append(download_link)
             time.sleep(30)
@@ -110,8 +118,8 @@ parser.add_argument("-s", "--shuffle", action="store_true")
 parser.add_argument("-ps")
 parser.add_argument("-rt")
 parser.add_argument("-pi")
-
 args = parser.parse_args()
+
 x = Piradio4Chan("ygyl", ["webm"], ["wsg"], 60*10)
 if args.k:
     x.keyword = args.k
