@@ -3,25 +3,31 @@
 """
 import json
 import logging
-from pprint import pprint
 import subprocess
 import time
 import _thread
 import requests
 import os
+from random import randrange
+import argparse
 
 
-class ChanPiper:
-
+class Piradio4Chan:
     def __init__(self, keyword, input_file_types, input_boards, input_refresh_rate):
         self.headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1)\
          AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
         self.keyword = keyword
         self.file_types = input_file_types
         self.playlist = []
-        self.processing = 0
+        self.index = 0
         self.boards = input_boards
         self.refresh_rate = input_refresh_rate
+        self.frequency = "87.9"
+        self.shuffle = False
+        self.ps = "Piradio"
+        self.rt = "Raspberry pi Radio Staion"
+        self.pi = "2333"
+
         logging.basicConfig(level=logging.WARNING,
                             format='%(asctime)s %(levelname)s %(message)s',
                             datefmt='%a, %d %b %Y %H:%M:%S',
@@ -35,23 +41,32 @@ class ChanPiper:
             time.sleep(self.refresh_rate)
 
     def download(self, name, thread_num):
+        music_pipe_r, music_pipe_w = os.pipe()
+        dev_null = open(os.devnull, "w")
         logging.info("Started " + name + " with id "+str(thread_num))
+        command = "sudo\u2333/home/pi/Playground/PiFM/src/pi_fm_rds\u2333-freq" \
+                  "\u2333{}\u2333-ps\u2333{}\u2333-rt\u2333{}\u2333-pi\u2333{}\u2333-audio\u2333-".format(
+                    self.frequency, self.ps, self.rt, self.pi).split("\u2333")
+        subprocess.Popen(command,stdin=music_pipe_r, stdout=dev_null)
         while True:
             if self.playlist:
-                pass
-                file = self.playlist[self.processing]
+                file = self.playlist[self.index]
                 print("Now playing ", file)
                 try:
                     subprocess.call(" curl -s "+file+" |ffmpeg -i - -f mp3 -loglevel panic - |\
-                     sox -t mp3 - -t wav - tempo 1.125 pitch 150 firfit ./75usPreEmphasis.ff|\
-                      sudo ./pi_fm_rds -freq 88.8 -ps \"4ChRadio\" -rt \"4Chan Radio Station\" -pi 2333 -audio -",
-                                    shell=True)
-                    self.processing += 1
-                except OSError as e:
+                     sox -t mp3 - -t wav - tempo 1.125 pitch 185 firfit ./75usPreEmphasis.ff",
+                                    shell=True, stdout=music_pipe_w, stderr=dev_null)
+                except OSError:
                     logging.warning("Unable to download {}".format(str(file)))
                 else:
                     logging.warning("Downloaded {}".format(str(file)))
-            time.sleep(1)
+                finally:
+                    if self.shuffle:
+                        self.index = randrange(0, len(self.playlist))
+                    else:
+                        self.index += 1
+                        if self.index == len(self.playlist):
+                            self.index = 0
 
     def collect(self):
         for board in self.boards:
@@ -85,7 +100,31 @@ class ChanPiper:
                                 download_link = "https://i.4cdn.org/{}/{}{}".format(board, post["tim"], post["ext"])
                                 if download_link not in self.playlist:
                                     self.playlist.append(download_link)
-                time.sleep(30)
+            time.sleep(30)
 
-x = ChanPiper("ygyl", ["webm"], ["wsg"], 60*10)
+parser = argparse.ArgumentParser()
+parser.add_argument("-k", help="keyword")
+parser.add_argument("-f", "--frequency", help="FM frequency")
+parser.add_argument("-b", "--board",  nargs='*')
+parser.add_argument("-s", "--shuffle", action="store_true")
+parser.add_argument("-ps")
+parser.add_argument("-rt")
+parser.add_argument("-pi")
+
+args = parser.parse_args()
+x = Piradio4Chan("ygyl", ["webm"], ["wsg"], 60*10)
+if args.k:
+    x.keyword = args.k
+if args.frequency:
+    x.frequency = args.frequency
+if args.board:
+    x.boards = args.board
+x.shuffle = args.shuffle
+if args.ps:
+    x.ps = args.ps
+if args.rt:
+    x.rt = args.rt
+if args.pi:
+    x.pi = args.pi
+
 x.start()
