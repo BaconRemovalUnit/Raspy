@@ -1,0 +1,76 @@
+<!doctype html>
+<title>Heater Control</title>
+<html>
+<script type="text/javascript" src="{{url_for('static', filename='js/jquery-3.5.1.min.js')}}"></script>
+<script type="text/javascript" src="{{url_for('static', filename='js/sweetalert.min.js')}}"></script>
+<script src="{{url_for('static', filename='js/app.js')}}"></script>
+
+<link rel="stylesheet" href="{{url_for('static', filename='css/bootstrap.min.css')}}">
+<script type="text/javascript" src="{{url_for('static', filename='js/bootstrap.min.js')}}"></script>
+<style>
+
+    .container-fluid{
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding-top: 2cm;
+    height: 100%;
+}
+
+
+
+</style>
+
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm"></div>
+        <div class="col-md">
+
+
+            <div class="row" style="display:inline-block;text-align: center;">
+                <div id="curr_time"> {{curr_time}}</div>
+            </div>
+            <div class="row">
+                <div class="col-md-6"> Temperature:
+                    <div id="temperature" class="col-md">{{heater_status.temp}}°C</div>
+                </div>
+                <div class="col-md-6"> Humidity:
+                    <div id="humidity" class="col-md pull-right">{{heater_status.hum}}%</div>
+                </div>
+
+            </div>
+            <br>
+
+            <p style="display:inline-block;"> The heater is currently&nbsp;</p>
+            <div id="power" style="display:inline-block;color:red;"> {% if heater_status.power %} on {% else %} off {%
+                endif %}
+            </div>
+            and
+            <div id="heated" style="display:inline-block;color:red;"> {% if heater_status.heat %} heated {% else %} not
+                heated {% endif %}
+            </div>
+
+        </div>
+        <div class="col-sm"></div>
+    </div>
+    <br>
+    <br>
+    <div class="row">
+        <div class="col-sm-2"></div>
+        <div class="col-md-4">
+            <button id="togglePower" class="btn btn-primary">
+                Toggle Power
+            </button>
+
+        </div>
+        <div class="col-md-4">
+            <button id="toggleHeat" class="btn btn-primary">
+                Toggle Heat
+            </button>
+        </div>
+        <div class="col-sm-2"></div>
+    </div>
+</div>
+</body>
+</html>
